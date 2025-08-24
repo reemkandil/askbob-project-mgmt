@@ -1,136 +1,129 @@
-"""Task management API routes."""
-
-from typing import List
-from uuid import UUID
+# backend/api/routes/tasks.py
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
+import uuid
 
-from application.dto.task_dto import TaskCreateDTO, TaskUpdateDTO, TaskResponseDTO
 from application.use_cases.task_use_cases import TaskUseCases
-from infrastructure.database.connection import get_db_session
-from infrastructure.database.repositories.task_repository import TaskRepository
+from application.dto.task_dto import CreateTaskRequest, UpdateTaskRequest, TaskResponse
+from api.dependencies import get_task_use_cases, get_current_tenant, get_current_user
 
-router = APIRouter(prefix="/api/v1", tags=["tasks"])
+router = APIRouter()
 
-
-def get_task_use_cases(db: AsyncSession = Depends(get_db_session)) -> TaskUseCases:
-    """Dependency to get task use cases."""
-    task_repository = TaskRepository(db)
-    return TaskUseCases(task_repository)
-
-
-@router.get("/projects/{project_id}/tasks", response_model=List[TaskResponseDTO])
-async def get_project_tasks(
-    project_id: UUID,
-    tenant_id: str = "default",  # In production, get from JWT token
-    task_use_cases: TaskUseCases = Depends(get_task_use_cases)
-):
-    """Get all tasks for a specific project."""
-    try:
-        tasks = await task_use_cases.get_project_tasks(project_id, tenant_id)
-        return [TaskResponseDTO.from_entity(task) for task in tasks]
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch tasks: {str(e)}"
-        )
-
-
-@router.post("/projects/{project_id}/tasks", response_model=TaskResponseDTO, status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
-    project_id: UUID,
-    task_data: TaskCreateDTO,
-    tenant_id: str = "default",  # In production, get from JWT token
-    task_use_cases: TaskUseCases = Depends(get_task_use_cases)
+    project_id: uuid.UUID,
+    request: CreateTaskRequest,
+    task_use_cases: TaskUseCases = Depends(get_task_use_cases),
+    tenant_id: uuid.UUID = Depends(get_current_tenant),
+    user_id: uuid.UUID = Depends(get_current_user)
 ):
-    """Create a new task in a project."""
+    """Create a new task in a project"""
     try:
-        task = await task_use_cases.create_task(project_id, task_data, tenant_id)
-        return TaskResponseDTO.from_entity(task)
+        task = await task_use_cases.create_task(
+            title=request.title,
+            project_id=project_id,
+            tenant_id=tenant_id,
+            created_by=user_id,
+            description=request.description,
+            priority=request.priority,
+            assigned_to=request.assigned_to,
+            due_date=request.due_date
+        )
+        
+        return TaskResponse(
+            id=task.id,
+            title=task.title,
+            description=task.description,
+            status=task.status,
+            priority=task.priority,
+            project_id=task.project_id,
+            tenant_id=task.tenant_id,
+            created_by=task.created_by,
+            assigned_to=task.assigned_to,
+            due_date=task.due_date,
+            created_at=task.created_at,
+            updated_at=task.updated_at
+        )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create task: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-
-@router.get("/tasks/{task_id}", response_model=TaskResponseDTO)
-async def get_task(
-    task_id: UUID,
-    tenant_id: str = "default",  # In production, get from JWT token
-    task_use_cases: TaskUseCases = Depends(get_task_use_cases)
+@router.get("/projects/{project_id}/tasks", response_model=List[TaskResponse])
+async def list_tasks_by_project(
+    project_id: uuid.UUID,
+    task_use_cases: TaskUseCases = Depends(get_task_use_cases),
+    tenant_id: uuid.UUID = Depends(get_current_tenant)
 ):
-    """Get a specific task by ID."""
+    """Get all tasks for a project"""
     try:
-        task = await task_use_cases.get_task_by_id(task_id, tenant_id)
-        if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+        tasks = await task_use_cases.get_tasks_by_project(project_id, tenant_id)
+        
+        return [
+            TaskResponse(
+                id=task.id,
+                title=task.title,
+                description=task.description,
+                status=task.status,
+                priority=task.priority,
+                project_id=task.project_id,
+                tenant_id=task.tenant_id,
+                created_by=task.created_by,
+                assigned_to=task.assigned_to,
+                due_date=task.due_date,
+                created_at=task.created_at,
+                updated_at=task.updated_at
             )
-        return TaskResponseDTO.from_entity(task)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch task: {str(e)}"
-        )
+            for task in tasks
+        ]
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-
-@router.put("/tasks/{task_id}", response_model=TaskResponseDTO)
+@router.put("/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
-    task_id: UUID,
-    task_data: TaskUpdateDTO,
-    tenant_id: str = "default",  # In production, get from JWT token
-    task_use_cases: TaskUseCases = Depends(get_task_use_cases)
+    task_id: uuid.UUID,
+    request: UpdateTaskRequest,
+    task_use_cases: TaskUseCases = Depends(get_task_use_cases),
+    tenant_id: uuid.UUID = Depends(get_current_tenant)
 ):
-    """Update a specific task."""
+    """Update a task"""
     try:
-        task = await task_use_cases.update_task(task_id, task_data, tenant_id)
-        if not task:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
-        return TaskResponseDTO.from_entity(task)
+        task = await task_use_cases.update_task(
+            task_id=task_id,
+            tenant_id=tenant_id,
+            title=request.title,
+            description=request.description,
+            status=request.status,
+            priority=request.priority,
+            assigned_to=request.assigned_to,
+            due_date=request.due_date
+        )
+        
+        return TaskResponse(
+            id=task.id,
+            title=task.title,
+            description=task.description,
+            status=task.status,
+            priority=task.priority,
+            project_id=task.project_id,
+            tenant_id=task.tenant_id,
+            created_by=task.created_by,
+            assigned_to=task.assigned_to,
+            due_date=task.due_date,
+            created_at=task.created_at,
+            updated_at=task.updated_at
+        )
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update task: {str(e)}"
-        )
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
-    task_id: UUID,
-    tenant_id: str = "default",  # In production, get from JWT token
-    task_use_cases: TaskUseCases = Depends(get_task_use_cases)
+    task_id: uuid.UUID,
+    task_use_cases: TaskUseCases = Depends(get_task_use_cases),
+    tenant_id: uuid.UUID = Depends(get_current_tenant)
 ):
-    """Delete a specific task."""
+    """Delete a task"""
     try:
         success = await task_use_cases.delete_task(task_id, tenant_id)
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete task: {str(e)}"
-        )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
