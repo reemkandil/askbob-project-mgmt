@@ -4,14 +4,11 @@ from typing import Optional
 import uuid
 from sqlalchemy import Column, String, DateTime, Boolean, Text, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-import enum
 
 from domain.entities.project import ProjectStatus
 from domain.entities.task import TaskStatus, TaskPriority
-
-Base = declarative_base()
+from .connection import Base
 
 class TenantModel(Base):
     __tablename__ = "tenants"
@@ -43,11 +40,6 @@ class UserModel(Base):
     created_projects = relationship("ProjectModel", back_populates="creator")
     created_tasks = relationship("TaskModel", foreign_keys="TaskModel.created_by", back_populates="creator")
     assigned_tasks = relationship("TaskModel", foreign_keys="TaskModel.assigned_to", back_populates="assignee")
-    
-    # Unique constraint on email per tenant
-    __table_args__ = (
-        {"schema": None}  # Add unique constraint in Alembic migration
-    )
 
 class ProjectModel(Base):
     __tablename__ = "projects"
