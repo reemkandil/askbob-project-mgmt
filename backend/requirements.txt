@@ -1,17 +1,23 @@
-bcrypt==4.3.0
-cached-property==2.0.1
-cffi==1.17.1
-chevron==0.14.0
-cryptography==45.0.6
-ecdsa==0.19.1
-frozendict==2.4.6
-genanki==0.13.1
-passlib==1.7.4
-pyasn1==0.6.1
-pycparser==2.22
-python-jose==3.5.0
-python-multipart==0.0.20
-PyYAML==6.0.2
-rsa==4.9.1
-six==1.17.0
-vboxapi==1
+# FastAPI and core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+email-validator==2.1.0
+pydantic[email]==2.5.0
+
+# Database
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+alembic==1.12.1
+
+# Authentication
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+
+# Environment
+python-dotenv==1.0.0
+
+# Development and testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
