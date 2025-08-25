@@ -1,4 +1,4 @@
-# backend/application/use_cases/auth_use_cases.py
+# backend/application/use_cases/auth_use_cases.py - Debug Version
 from typing import Optional
 from fastapi import HTTPException, status
 from domain.entities.user import User
@@ -21,42 +21,66 @@ class AuthUseCases:
     
     async def register_user(self, user_data: RegisterRequest) -> TokenResponse:
         """Register a new user and create their tenant"""
-        # Check if user already exists
-        existing_user = await self.user_repository.get_by_email(user_data.email)
-        if existing_user:
-            raise ValueError("Email already registered")
-        
-        # Check if tenant domain already exists
-        existing_tenant = await self.tenant_repository.get_by_domain(user_data.tenant_domain)
-        if existing_tenant:
-            raise ValueError("Tenant domain already exists")
-        
-        # Create tenant first
-        tenant = Tenant(
-            name=user_data.tenant_name,
-            domain=user_data.tenant_domain
-        )
-        created_tenant = await self.tenant_repository.create(tenant)
-        
-        # Hash password and create user
-        hashed_password = self.jwt_handler.get_password_hash(user_data.password)
-        user = User(
-            email=user_data.email,
-            tenant_id=created_tenant.id,
-            hashed_password=hashed_password,
-            first_name=user_data.first_name,
-            last_name=user_data.last_name
-        )
-        created_user = await self.user_repository.create(user)
-        
-        # Generate JWT token
-        access_token = self.jwt_handler.create_access_token(
-            user_id=created_user.id,
-            tenant_id=created_user.tenant_id,
-            email=created_user.email
-        )
-        
-        return TokenResponse(access_token=access_token, token_type="bearer")
+        try:
+            print(f"🔍 DEBUG: Starting registration for email: {user_data.email}")
+            print(f"🔍 DEBUG: Tenant domain: {user_data.tenant_domain}")
+            
+            # Check if user already exists
+            existing_user = await self.user_repository.get_by_email(user_data.email)
+            if existing_user:
+                print(f"❌ DEBUG: User already exists: {user_data.email}")
+                raise ValueError("Email already registered")
+            print(f"✅ DEBUG: Email is available: {user_data.email}")
+            
+            # Check if tenant domain already exists
+            existing_tenant = await self.tenant_repository.get_by_domain(user_data.tenant_domain)
+            if existing_tenant:
+                print(f"❌ DEBUG: Tenant domain already exists: {user_data.tenant_domain}")
+                raise ValueError("Tenant domain already exists")
+            print(f"✅ DEBUG: Tenant domain is available: {user_data.tenant_domain}")
+            
+            # Create tenant first
+            print(f"🔄 DEBUG: Creating tenant...")
+            tenant = Tenant(
+                name=user_data.tenant_name,
+                domain=user_data.tenant_domain
+            )
+            created_tenant = await self.tenant_repository.create(tenant)
+            print(f"✅ DEBUG: Tenant created with ID: {created_tenant.id}")
+            
+            # Hash password and create user
+            print(f"🔄 DEBUG: Hashing password and creating user...")
+            hashed_password = self.jwt_handler.get_password_hash(user_data.password)
+            user = User(
+                email=user_data.email,
+                tenant_id=created_tenant.id,
+                hashed_password=hashed_password,
+                first_name=user_data.first_name,
+                last_name=user_data.last_name
+            )
+            created_user = await self.user_repository.create(user)
+            print(f"✅ DEBUG: User created with ID: {created_user.id}")
+            
+            # Generate JWT token
+            print(f"🔄 DEBUG: Generating JWT token...")
+            access_token = self.jwt_handler.create_access_token(
+                user_id=created_user.id,
+                tenant_id=created_user.tenant_id,
+                email=created_user.email
+            )
+            print(f"✅ DEBUG: Registration completed successfully")
+            
+            return TokenResponse(access_token=access_token, token_type="bearer")
+            
+        except ValueError as e:
+            print(f"❌ DEBUG: ValueError: {str(e)}")
+            raise e
+        except Exception as e:
+            print(f"💥 DEBUG: Unexpected error: {str(e)}")
+            print(f"💥 DEBUG: Error type: {type(e)}")
+            import traceback
+            traceback.print_exc()
+            raise e
     
     async def login_user(self, login_data: LoginRequest) -> TokenResponse:
         """Authenticate user and return JWT token"""
